@@ -1,4 +1,6 @@
+import io
 import json
+import speech_recognition as sr
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
@@ -28,14 +30,27 @@ def contact_view(request):
 @login_required(login_url="login")
 def animation_view(request):
     if request.method == 'POST':
-        try:
-            data = json.loads(request.body)
-        except Exception as e:
-            return JsonResponse({'error': 'Invalid JSON provided.'}, status=400)
+        #check if an audio file is provided
+        if 'audio_file' in request.FILES:
+            audio_file = request.FILES['audio_file']
+            r = sr.Recognizer() #use speech recognition to extract text from the audio file
+            try:
+                #read file into an AudioFile object
+                with sr.AudioFile(io.BytesIO(audio_file.read())) as source:
+                    audio = r.record(source)
+                text = r.recognize_google(audio)
+            except Exception as e:
+                return JsonResponse({'error': f'Error processing audio file: {str(e)}'}, status=400)
+        # else use the text provided in the request body
+        else:
+            try:
+                data = json.loads(request.body)
+            except Exception as e:
+                return JsonResponse({'error': 'Invalid JSON provided.'}, status=400)
 
-        text = data.get('sen', '')
-        if not text:
-            return JsonResponse({'error': 'Missing "sen" parameter.'}, status=400)
+            text = data.get('sen', '')
+            if not text:
+                return JsonResponse({'error': 'Missing "sen" parameter.'}, status=400)
 
         # Convert text to lowercase
         text = text.lower()
@@ -103,6 +118,7 @@ def animation_view(request):
 
         return JsonResponse({'words': final_words, 'text': text}, status=200)
 
+    # for get or other requests, a simple message is returned
     return JsonResponse({'message': 'Send a POST request with JSON payload {"sen": "your sentence"}'}, status=200)
 
 
